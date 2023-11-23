@@ -1,38 +1,42 @@
+
 struct Solution;
 impl Solution {
-    pub fn count_pairs(nums: Vec<i32>, target: i32) -> i32 {
-        let mut ans = 0;
-        for (i,v) in nums.iter().enumerate() {
-            for j in 0..i {
-                if v+nums[j] < target {ans+=1;}
+    pub fn max_array_value(nums: Vec<i32>) -> i64 {
+        let mut acc = 0_i64;
+        for n in (0..nums.len()).rev() {
+            let var = nums[n] as i64;
+            if acc >= var {
+                acc+=var;
+            } else {
+                acc = var;
             }
         }
-        ans
+        acc
     }
 }
 
-
 #[test]
-// 输入：nums = [-1,1,2,3,1], target = 2
-// 输出：3
+// 输入：nums = [2,3,7,9,3]
+// 输出：21
 fn testcase_1() {
-    assert_eq!(3, Solution::count_pairs(vec![-1,1,2,3,1], 2))
+    assert_eq!(21, Solution::max_array_value(vec![2,3,7,9,3]))
 }
 
 
 
 #[test]
-// 输入：nums = [-6,2,5,-2,-7,-1,3], target = -2
-// 输出：10
+// 输入：nums = [5,3,3]
+// 输出：11
 fn testcase_2() {
-    assert_eq!(10, Solution::count_pairs(vec![-6,2,5,-2,-7,-1,3], -2))
+    assert_eq!(11, Solution::max_array_value(vec![5,3,3]))
 }
-
 
 #[test]
-// 输入：nums = [9,-5,-5,5,-5,-4,-6,6,-6], target = 3
-// 输出：27
+// 输入：nums = [40,15,35,98,77,79,24,62,53,84,97,16,30,22,49]
+// 输出：781
 fn testcase_3() {
-    assert_eq!(27, Solution::count_pairs(vec![9,-5,-5,5,-5,-4,-6,6,-6], 3))
+    assert_eq!(781, Solution::max_array_value(vec![40,15,35,98,77,79,24,62,53,84,97,16,30,22,49]))
 }
-fn main() {}
+
+fn main() {
+}
