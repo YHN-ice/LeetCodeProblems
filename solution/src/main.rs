@@ -34,14 +34,11 @@ impl Solution {
         };
         let nm = grid.len()*grid[0].len();
         let (mut acc, mut racc) = (1, 1);
-        let mut pref = (0..nm).rev().map(|x| {acc = acc*(if x== nm-1 {1} else {grid.lget(x+1)%MOD})%MOD; acc})
-            .enumerate()
-            .collect::<Vec<_>>();
-        pref.reverse();
+        let pref = (0..nm).rev().map(|x| {acc = acc*(if x== nm-1 {1} else {grid.lget(x+1)%MOD})%MOD; acc}).collect::<Vec<_>>();
         fold_n(
-         pref.into_iter().map(|(i, var)| {
-                let ret = (var * racc) %MOD;
-                racc = racc * (grid.lget(nm-1-i) %MOD) %MOD;
+            (0..nm).map(|i| {
+                let ret = (pref[nm-i-1] * racc) %MOD;
+                racc = racc * (grid.lget(i) %MOD) %MOD;
 
                 ret
             }), grid[0].len())
