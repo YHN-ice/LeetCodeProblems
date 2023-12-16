@@ -14,7 +14,7 @@ impl Solution {
         //      S(u) \subseteq S(v) \lor S(v) \subseteq S(u), \forall u,v in pairs
         // furthur if both sides holds, S(u)=S(v), then we could return 2
         // otherwise, conflict encountered and return 0
-        let mut bm = [[0_u128;4]; 500];
+        let mut bm = [[0_u128;4]; 501];
         for pair in &pairs {
             let (a,b) = (pair[0] as usize, pair[1] as usize);
             bm[a][b / 128] |= 1<<(b % 128);
