@@ -1,162 +1,76 @@
-use std::{collections::{BTreeMap, btree_map::Iter, HashMap, BinaryHeap, hash_map::Entry}, ops::{AddAssign, SubAssign}, iter::Sum, hash::Hash, fmt::Debug, cmp::Reverse};
-use core::iter::FromIterator;
 #[derive(Debug)]
-struct SortedList<T:Ord+Copy+Default+AddAssign+SubAssign> {
-    data:BTreeMap<T, usize>,
+struct Trie<> {
+    ptr: [usize; 26],
+    term: Option<String>
 }
 
-impl<T:Ord+Copy+Default+AddAssign+SubAssign> SortedList<T> {
-    fn new()->Self{
-        Self{data:BTreeMap::new()}
+impl Trie {
+    fn new() -> Self {
+        Trie{ptr:[0;26], term:None}
     }
-
-    fn add(&mut self, e: T) {
-        self.data.entry(e).and_modify(|x| *x+=1).or_insert(1);
-    }
-    fn remove(&mut self, e: T) {
-        self.data.entry(e).and_modify(|x| *x-=1);
-        if let Some(&0) = self.data.get(&e) {
-            self.data.remove(&e);
-        }
-    }
-    fn max(&self) -> T {
-        self.data.last_key_value().map(|x| *x.0).unwrap_or_default()
-    }
-    fn min(&self) -> T {
-        self.data.first_key_value().map(|x| *x.0).unwrap_or_default()
-    }
-}
-
-struct RefIter<'a, T:Ord+Copy+Default+AddAssign+SubAssign> {
-    k:T,
-    cnt: usize,
-    i1: Iter<'a, T, usize>,
-}
-
-impl<'a, T:Ord+Copy+Default+AddAssign+SubAssign> Iterator for RefIter<'a, T> {
-    type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.cnt {
-            0=> match self.i1.next() {
-                Some((&k,&v)) => {
-                    self.k = k;
-                    self.cnt = v-1;
-                    Some(k)
+    fn build(dict:Vec<String>) -> (Vec<Trie>, usize) {
+        let mut storage = vec![Trie::new()];
+        let root = 0;
+        dict.into_iter().for_each(|x| {
+            let mut cur = root;
+            x.bytes().map(|x| (x-b'a') as usize).for_each(|ch| {
+                if storage[cur].ptr[ch] == 0 {
+                    storage[cur].ptr[ch] = storage.len();
+                    storage.push(Trie::new());
                 }
-                None=> None,
-            },
-            _=> {
-                self.cnt-=1;
-                Some(self.k)
+                cur = storage[cur].ptr[ch];
+            });
+            storage[cur].term = Some(x)
+        });
+        (storage,root)
+    }
+}
+
+fn get_shape(board:&Vec<Vec<char>>) -> (usize, usize) {
+    (board.len(), board.first().map(|x| x.len()).unwrap_or(0))
+}
+
+fn backtrack(trie:&mut Vec<Trie>, root:usize, board:&Vec<Vec<char>>, pos:(usize,usize)) -> impl Iterator<Item = String> {
+    let (n,m) = get_shape(&board);
+    let mut vis = vec![vec![false;m];n];
+    let mut ret = vec![];
+    fn dfs(cur:usize, trie:&mut Vec<Trie>, board:&Vec<Vec<char>>, pos:(usize, usize), vis:&mut Vec<Vec<bool>>, ret:&mut Vec<String>) {
+        let (n,m) = get_shape(board);
+        let (x,y) = pos;
+        let cur_ch = (board[x][y] as u8 - b'a') as usize;
+        match trie[cur].ptr[cur_ch] {
+            0=>return,
+            id => {
+                // hit on id
+                vis[x][y] = true;
+                if let Some(str_ref) = trie[id].term.take() {ret.push(str_ref)}
+
+                if trie[id].ptr.iter().all(|&x| x == 0) {
+                    vis[x][y] = false;
+                    trie[cur].ptr[cur_ch] = 0;
+                    return
+                }
+
+                let diff = [-1,0,1,0,-1];
+                diff.iter().zip((&diff[1..]).into_iter()).for_each(|(dx, dy)|{
+                    let (x,y) = (x as i32+dx, y as i32+dy);
+                    if !(0..n as i32).contains(&x) || !(0..m as i32).contains(&y) || vis[x as usize][y as usize]{ return }
+                    dfs(id, trie, board, (x as usize, y as usize), vis, ret)
+                });
+                vis[x][y] = false;
             }
         }
     }
+    dfs(root, trie, board, pos, &mut vis, &mut ret);
+    ret.into_iter()
 }
-
-
-
-impl<T:Ord+Copy+Default+AddAssign+SubAssign> FromIterator<T> for SortedList<T> {
-    fn from_iter<A: IntoIterator<Item = T>>(iter: A) -> Self {
-        let mut ret = Self::new();
-        iter.into_iter().for_each(|x| ret.add(x));
-        ret
-    }
-}
-
-#[derive(Debug)]
-struct DualHeap<T:Ord+Copy+Default+AddAssign+SubAssign, U: From<T>+Sum> {
-    head:BinaryHeap<T>,
-    tail:BinaryHeap<Reverse<T>>,
-    k_sum:U,
-    todo:HashMap<T,usize>,
-}
-
-impl<T:Ord+Copy+Default+AddAssign+SubAssign+Hash+Debug, U:From<T>+Sum+AddAssign+SubAssign+Debug> DualHeap<T,U> {
-    fn new(init_slice: &[T])->Self {
-        let head = init_slice.iter().map(|x| *x).collect();
-        let tail = BinaryHeap::new();
-        let k_sum = init_slice.iter().map(|x| (*x).into()).sum::<U>();
-        let todo = HashMap::new();
-        Self{head, tail, k_sum, todo}
-    }
-
-    fn extend(&mut self, augment_slice: &[T]) {
-        augment_slice.into_iter().for_each(|x| self.add(*x));
-    }
-
-    fn poll(&mut self) {
-        self.purge_tail();
-        self.purge_head();
-        let fill = self.tail.peek().unwrap().0;
-        // dbg!(&self);
-        self.k_sum += fill.into();
-        self.head.push(fill);
-        self.tail.pop();
-    }
-    fn pop(&mut self) {
-        self.purge_tail();
-        self.purge_head();
-        let kick = *self.head.peek().unwrap();
-        self.k_sum -= kick.into();
-        self.head.pop();
-        self.tail.push(Reverse(kick));
-    }
-    fn add(&mut self, e:T) {
-        if e<*self.head.peek().unwrap() {
-            self.head.push(e);
-            self.k_sum += e.into();
-            self.pop();
-        } else {
-            self.tail.push(Reverse(e));
-        }
-    }
-    fn del(&mut self, e:T) {
-        self.todo.entry(e).and_modify(|x| *x+=1).or_insert(1);
-        if e<self.tail.peek().unwrap().0 {
-            self.k_sum -= e.into();
-            self.poll();
-        }
-    }
-    fn k_sum(&mut self) -> &U {
-        &self.k_sum
-    }
-
-
-    fn purge_head(&mut self) {
-        while let Some(victim_counter) = self.todo.get_mut(&self.head.peek().map(|x| *x).unwrap_or_default()) {
-            *victim_counter -= 1;
-            if *victim_counter == 0 {self.todo.remove(&self.head.peek().map(|x| *x).unwrap_or_default());}
-            self.head.pop();
-        }
-    }
-    fn purge_tail(&mut self) {
-        while let Some(victim_counter) = self.todo.get_mut(&self.tail.peek().map(|x| *x).unwrap_or_default().0) {
-            *victim_counter -= 1;
-            if *victim_counter == 0 {self.todo.remove(&self.tail.peek().map(|x| *x).unwrap_or_default().0);}
-            self.tail.pop();
-        }
-    }
-}
-
-
 impl Solution {
-    pub fn minimum_cost(nums: Vec<i32>, k: i32, dist: i32) -> i64 {
-        let k = k as usize; let dist = dist as usize;
-        let mut dual:DualHeap<i32, i64> = DualHeap::new(&nums[1..k]);
-        dual.extend(&nums[k..2+dist]);
-        let init = *dual.k_sum();
-        // println!("initial, h:{:?}, t:{:?}, del:{:?} k_sum{}", dual.head, dual.tail, dual.todo, dual.k_sum);
-        nums[0] as i64 + ((2+dist .. nums.len()).scan(dual, |acc, i| {
-            // println!("add:{}, del:{}", nums[i], nums[i-dist-1]);
-            acc.add(nums[i]);
-            // println!("after add, h:{:?}, t:{:?}, del:{:?} k_sum{}", acc.head, acc.tail, acc.todo, acc.k_sum);
-            acc.del(nums[i-dist-1]);
-            // println!("after add del, h:{:?}, t:{:?}, del:{:?} k_sum{}", acc.head, acc.tail, acc.todo, acc.k_sum);
-            // let mut range:Vec<i32> = (&nums[i-dist..=i]).iter().map(|x| *x).collect();
-            // range.sort();
-            Some(*acc.k_sum())
-
-        }).min().unwrap_or(i64::MAX)).min(init)
+    pub fn find_words(board: Vec<Vec<char>>, words: Vec<String>) -> Vec<String> {
+        let (mut trie, root) = Trie::build(words);
+        let (n,m) = get_shape(&board);
+        (0..n).flat_map(|x:usize| (0..m).map(move |y:usize| (x,y))).flat_map(|(x,y)| {
+            backtrack(&mut trie, root, &board, (x,y))
+        }).collect()
     }
 }
 
@@ -164,37 +78,11 @@ struct Solution;
 
 
 fn main() {
-    let __gcd__ = |mut a,mut b| {
-        if a<b {std::mem::swap(&mut a, &mut b)};
-        while a%b!=0 {
-            let rem = a%b;
-            a = b;
-            b = rem
-        }
-        b
-    };
-    let mut m = HashMap::new();
-    m.insert(1, 'b');
-    let c:Entry<_,_> = m.entry(1);
-    enum demo {
-        A,B
-    }
-    impl demo {
-        fn call_me(&self) {
-            match self {
-                &Self::A => println!("I am A"),
-                &Self::B => println!("I am B"),
-            }
-        }
-    }
-    let acc = demo::A;
-    acc.call_me();
-    match acc {
-        demo::A=>println!("i am A"),
-        demo::B=>println!("i am B"),
-    }
-    assert_eq!(1, __gcd__(17,63));
-    // assert_eq!(0, Solution::minimum_cost(vec![43,44,41,45,42,41,45,47,47,50,47,45,42,42,47,46,45,50,44,42,48,46,49,45,47,47,45,44,40,42,44,42,43,46,46,47,49,44,43,47,48,48,41,45,50,50,44,42,41,50], 7, 9));
-    assert_eq!(0, Solution::minimum_cost(vec![41,50,42,48,50,41,48,50,40,41,43,44,42,42,41,43,45,50,44,43,44,44,49,48,47,44,43,49,42,42,50,45,40,49,46,46,43,48,42,45,41,44,47,40,48,41,48,41,41,49], 9, 34));
 
+    // let board = vec![vec!['o','a','a','n'],vec!['e','t','a','e'],vec!['i','h','k','r'],vec!['i','e','a','t']];
+    // let words = vec!["oath","pea","eat","rain"];
+    // assert_eq!(vec!["oath","eat"].into_iter().map(|x| x.to_owned()).collect::<Vec<String>>(), Solution::find_words(board, words.into_iter().map(|x| x.to_owned()).collect()));
+    let board = vec![vec!['a','b']];
+    let words = vec!["a", "b"];
+    assert_eq!(vec!["a","b"].into_iter().map(|x| x.to_owned()).collect::<Vec<String>>(), Solution::find_words(board, words.into_iter().map(|x| x.to_owned()).collect()));
 }
