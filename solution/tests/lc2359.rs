@@ -20,8 +20,8 @@ impl Solution {
             }
             dist
         };
-        println!("bfs 1 {:?}", bfs(node1.try_into().unwrap()));
-        println!("bfs 2 {:?}", bfs(node2.try_into().unwrap()));
+        // println!("bfs 1 {:?}", bfs(node1.try_into().unwrap()));
+        // println!("bfs 2 {:?}", bfs(node2.try_into().unwrap()));
         bfs(node1.try_into().unwrap())
             .into_iter()
             .zip(bfs(node2.try_into().unwrap()).into_iter())
